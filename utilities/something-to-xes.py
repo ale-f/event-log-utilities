@@ -184,21 +184,17 @@ attributes.""")
       help='preserve all event attributes verbatim in the output, not just ' +
            'the mapped ones')
   args = parser.parse_args()
-  if args.trace:
-    args.trace.reverse()
-  else:
-    args.trace = []
-  args.trace.append("")
 
   mappings = {}
-  for k, v in args.mapping:
-    k = k.split(":", 2)
-    if len(k) == 1:
-      prefix = None
-      name = k[0]
-    else:
-      prefix, name = k
-    mappings[(prefix, name)] = v
+  if args.mapping:
+    for k, v in args.mapping:
+      k = k.split(":", 2)
+      if len(k) == 1:
+        prefix = None
+        name = k[0]
+      else:
+        prefix, name = k
+      mappings[(prefix, name)] = v
 
   if args.mode == 'xml':
     if args.xpath_selector and args.css_selector:
@@ -215,6 +211,11 @@ attributes.""")
   else:
     assert False
 
+  if args.trace:
+    args.trace.reverse()
+  else:
+    args.trace = []
+  args.trace.append("")
   traces = {}
   for e in entries:
     for t in args.trace:
