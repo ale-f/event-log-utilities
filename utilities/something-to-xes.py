@@ -28,6 +28,7 @@
 # specify events may be extracted using either an XPath expression or a CSS
 # selector.
 
+import os
 import csv
 import sys
 from lxml import etree
@@ -35,6 +36,14 @@ from lxml.etree import XPath
 from lxml.cssselect import CSSSelector
 import argparse
 import dateutil.parser
+
+prog_name = os.path.basename(sys.argv[0])
+
+def error(msg, usage=False):
+  sys.stderr.write("%s: error: %s\n" % (prog_name, msg))
+  if usage:
+    sys.stderr.write("Try '%s --help' for more information.\n" % prog_name)
+  exit(1)
 
 def xml_handler(f, selector):
   tree = etree.parse(f)
@@ -133,48 +142,79 @@ if __name__ == '__main__':
       type=argparse.FileType('w'),
       default=sys.stdout)
 
-  xml_group = parser.add_argument_group('XML input arguments')
-  xml_group.add_argument(
+  mode_group_ = parser.add_argument_group('mode arguments', """\
+These arguments specify the type of the input file. Precisely one of them must
+be specified.""")
+  mode_group = mode_group_.add_mutually_exclusive_group(required=True)
+  mode_group.add_argument(
       '--xml',
       help='parse the input file as a XML document (requires either --xpath ' +
            'or --css)',
       action='store_const',
       dest='mode',
       const='xml')
-  xml_group.add_argument(
-      '--xpath',
-      dest='xpath_selector',
-      metavar='EXPRESSION',
-      help='select event elements from the input XML document according to ' +
-           'the given XPath expression')
-  xml_group.add_argument(
-      '--css',
-      dest='css_selector',
-      metavar='SELECTOR',
-      help='select event elements from the input XML document according to ' +
-           'the given CSS selector')
-
-  csv_group = parser.add_argument_group('CSV input arguments')
-  csv_group.add_argument(
+  mode_group.add_argument(
       '--csv',
       help='parse the input file as a CSV document',
       action='store_const',
       dest='mode',
       const='csv')
 
+  xml_group = parser.add_argument_group('XML input arguments', """\
+These arguments specify how to select event elements from a XML input file.
+Precisely one of them must be specified (when using --xml).""")
+  selector_group = xml_group.add_mutually_exclusive_group(required=False)
+  selector_group.add_argument(
+      '--xpath',
+      dest='xpath_selector',
+      metavar='EXPRESSION',
+      help='select event elements from the input XML document according to ' +
+           'the given XPath expression')
+  selector_group.add_argument(
+      '--css',
+      dest='css_selector',
+      metavar='SELECTOR',
+      help='select event elements from the input XML document according to ' +
+           'the given CSS selector')
+
+  csv_group = parser.add_argument_group('CSV input arguments', """\
+These arguments specify the CSV dialect used by the input file; all are
+optional. If neither --double-quote nor --escape is specified, quoted fields
+may not contain quoted characters.""")
+  csv_group.add_argument(
+      '--delimiter',
+      metavar='CHAR',
+      help='%(metavar)s is the field delimiter (default: \'%(default)s\')',
+      default=',')
+  csv_group.add_argument(
+      '--quote',
+      metavar='CHAR',
+      help='%(metavar)s introduces a quoted field (default: \'%(default)s\')',
+      default='"')
+  escape_group = csv_group.add_mutually_exclusive_group(required=False)
+  escape_group.add_argument(
+      '--double-quote',
+      action='store_true',
+      help='quote characters inside quotes are escaped by doubling')
+  escape_group.add_argument(
+      '--escape',
+      metavar='CHAR',
+      dest='escape',
+      help='quote characters inside quotes are escaped by %(metavar)s')
+
   mapping_group = parser.add_argument_group('attribute mapping arguments', """\
-These options control how event attributes will be mapped to XES attributes.
-FORMAT-VALUE can contain Python input specifiers that refer to named event
-attributes.""")
+These arguments control how event attributes will be mapped to XES attributes.
+The --mapping and --trace arguments may be given several times. VALUE can
+contain Python format specifiers that refer to named event attributes.""")
   mapping_group.add_argument(
       '--mapping',
-      metavar=('XES-NAME', 'FORMAT-VALUE'),
+      metavar=('XES-NAME', 'VALUE'),
       nargs=2,
       action='append',
       help='define a mapping from event attributes to XES attributes')
   mapping_group.add_argument(
       '--trace',
-      metavar='FORMAT-VALUE',
+      metavar='VALUE',
       action='append',
       help='define a mapping from event attributes to XES trace names; each ' +
            'event will end up in precisely one trace')
@@ -197,19 +237,22 @@ attributes.""")
       mappings[(prefix, name)] = v
 
   if args.mode == 'xml':
-    if args.xpath_selector and args.css_selector:
-      pass
-    elif args.xpath_selector:
+    if args.xpath_selector:
       selector = XPath(args.xpath_selector)
     elif args.css_selector:
       selector = CSSSelector(args.css_selector)
     else:
-      assert False
+      error("no selector specified; use either --xpath or --css", usage=True)
     entries = xml_handler(args.infile, selector)
   elif args.mode == 'csv':
-    entries = csv_handler(args.infile, delimiter=";")
-  else:
-    assert False
+    if args.xpath_selector or args.css_selector:
+      error("XML selectors cannot be used with the --csv argument", usage=True)
+    else:
+      entries = csv_handler(args.infile,
+          delimiter=args.delimiter,
+          quotechar=args.quote,
+          doublequote=args.double_quote,
+          escapechar=args.escape)
 
   if args.trace:
     args.trace.reverse()
