@@ -132,44 +132,53 @@ if __name__ == '__main__':
       nargs='?',
       type=argparse.FileType('w'),
       default=sys.stdout)
-  parser.add_argument(
+
+  xml_group = parser.add_argument_group('XML input arguments')
+  xml_group.add_argument(
       '--xml',
       help='parse the input file as a XML document (requires either --xpath ' +
            'or --css)',
       action='store_const',
       dest='mode',
       const='xml')
-  parser.add_argument(
+  xml_group.add_argument(
       '--xpath',
       dest='xpath_selector',
       metavar='EXPRESSION',
       help='select event elements from the input XML document according to ' +
            'the given XPath expression')
-  parser.add_argument(
+  xml_group.add_argument(
       '--css',
       dest='css_selector',
       metavar='SELECTOR',
       help='select event elements from the input XML document according to ' +
            'the given CSS selector')
-  parser.add_argument(
+
+  csv_group = parser.add_argument_group('CSV input arguments')
+  csv_group.add_argument(
       '--csv',
       help='parse the input file as a CSV document',
       action='store_const',
       dest='mode',
       const='csv')
-  parser.add_argument(
+
+  mapping_group = parser.add_argument_group('attribute mapping arguments', """\
+These options control how event attributes will be mapped to XES attributes.
+FORMAT-VALUE can contain Python input specifiers that refer to named event
+attributes.""")
+  mapping_group.add_argument(
       '--mapping',
       metavar=('XES-NAME', 'FORMAT-VALUE'),
       nargs=2,
       action='append',
       help='define a mapping from event attributes to XES attributes')
-  parser.add_argument(
+  mapping_group.add_argument(
       '--trace',
       metavar='FORMAT-VALUE',
       action='append',
       help='define a mapping from event attributes to XES trace names; each ' +
            'event will end up in precisely one trace')
-  parser.add_argument(
+  mapping_group.add_argument(
       '--preserve',
       action='store_true',
       help='preserve all event attributes verbatim in the output, not just ' +
