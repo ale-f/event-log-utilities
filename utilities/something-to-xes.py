@@ -229,6 +229,17 @@ contain Python format specifiers that refer to named event attributes.""")
       action='store_true',
       help='preserve all event attributes verbatim in the output, not just ' +
            'the mapped ones')
+
+  output_group = parser.add_argument_group('output arguments', """\
+These arguments control the generation of the final XES document.""")
+  output_group.add_argument(
+      '--max-traces',
+      metavar='COUNT',
+      action='store',
+      type=int,
+      default=None,
+      help='output only the first %(metavar)s traces found in the input ' +
+           'file (default: %(default)s)')
   args = parser.parse_args()
 
   mappings = {}
@@ -266,16 +277,21 @@ contain Python format specifiers that refer to named event attributes.""")
     args.trace = []
   args.trace.append("")
   traces = {}
+  traces_in_order = []
   for e in entries:
     for t in args.trace:
       try:
         possible_name = t % e
         if not possible_name in traces:
           traces[possible_name] = []
+          traces_in_order.append(possible_name)
         traces[possible_name].append(e)
         break
       except KeyError:
         pass
+
+  if args.max_traces:
+    traces = {ti: traces[ti] for ti in traces_in_order[:args.max_traces]}
 
   root = etree.Element("log")
 
