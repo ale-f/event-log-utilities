@@ -45,6 +45,9 @@ def error(msg, usage=False):
     sys.stderr.write("Try '%s --help' for more information.\n" % prog_name)
   exit(1)
 
+def progress(msg):
+  sys.stderr.write("%s\n" % msg)
+
 def xml_handler(f, selector):
   tree = etree.parse(f)
   for e in selector(tree):
@@ -142,6 +145,11 @@ Convert a XML- or CSV-format event log to an XES document.""")
       nargs='?',
       type=argparse.FileType('w'),
       default=sys.stdout)
+  parser.add_argument(
+      '--quiet',
+      help='don\'t write progress information to standard error',
+      action='store_false',
+      dest='chatty')
 
   mode_group_ = parser.add_argument_group('mode arguments', """\
 These arguments specify the type of the input file. Precisely one of them must
@@ -243,6 +251,9 @@ These arguments control the generation of the final XES document.""")
            'file (default: %(default)s)')
   args = parser.parse_args()
 
+  if not args.chatty:
+    progress = lambda s: None
+
   mappings = {}
   if args.mapping:
     for k, v in args.mapping:
@@ -279,6 +290,7 @@ These arguments control the generation of the final XES document.""")
   args.trace.append("")
   traces = {}
   traces_in_order = []
+  count = 0
   for e in entries:
     for t in args.trace:
       try:
@@ -287,12 +299,20 @@ These arguments control the generation of the final XES document.""")
           traces[possible_name] = []
           traces_in_order.append(possible_name)
         traces[possible_name].append(e)
+        count += 1
+        if count % 1000 == 0:
+          progress("Processed %d entries." % count)
         break
       except KeyError:
         pass
+  total_traces = len(traces)
+  progress("Processed a total of %d entries across %d traces." % \
+      (count, total_traces))
 
   if args.max_traces:
+    progress("Pruning to at most %d traces." % args.max_traces)
     traces = {ti: traces[ti] for ti in traces_in_order[:args.max_traces]}
+    total_traces = len(traces)
 
   root = etree.Element("log")
 
@@ -305,6 +325,7 @@ These arguments control the generation of the final XES document.""")
   if not "concept" in used_prefixes:
     root.append(get_extension_element("concept"))
 
+  count = 0
   for t in traces:
     trace = etree.Element("trace")
     trace.append(etree.Element("string", key="concept:name", value=t))
@@ -312,7 +333,12 @@ These arguments control the generation of the final XES document.""")
       for d in traces[t]:
         trace.append(dict_to_element(d, mappings, args.preserve))
       root.append(trace)
+    count += 1
+    if count % 1000 == 0:
+      progress("Processed %d/%d traces (%g%%)." % \
+          (count, total_traces, (float(count) / total_traces) * 100))
 
+  progress("Writing tree.")
   etree.ElementTree(root).write(args.outfile,
       pretty_print=True,
       encoding="utf-8",
