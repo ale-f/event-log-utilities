@@ -126,7 +126,8 @@ prefix "%s" does not specify a known standard XES extension""" % prefix
   return etree.Element("extension", name=name, prefix=prefix, uri=uri)
 
 if __name__ == '__main__':
-  parser = argparse.ArgumentParser()
+  parser = argparse.ArgumentParser(description="""\
+Convert a XML- or CSV-format event log to an XES document.""")
   parser.add_argument(
       'infile',
       metavar='IN',
