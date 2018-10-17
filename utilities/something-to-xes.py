@@ -296,7 +296,7 @@ contain Python format specifiers that refer to named event attributes.""")
         trace.append(dict_to_element(d, mappings, args.preserve))
       root.append(trace)
 
-  args.outfile.write(etree.tostring(root,
+  etree.ElementTree(root).write(args.outfile,
       pretty_print=True,
       encoding="utf-8",
-      xml_declaration=True))
+      xml_declaration=True)
