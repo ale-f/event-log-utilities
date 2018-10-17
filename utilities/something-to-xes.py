@@ -55,14 +55,14 @@ def xml_handler(f, selector):
         result[child.tag + "." + name] = value
     yield result
 
-def utf8(s, errors='strict'):
-  return unicode(s, encoding="utf-8", errors=errors)
+def line_to_unicode(s, encoding, errors='strict'):
+  return unicode(s, encoding, errors=errors)
 
-def csv_handler(f, **fmtparams):
+def csv_handler(f, encoding, **fmtparams):
   reader = csv.reader(f, **fmtparams)
-  names = map(utf8, next(reader))
+  names = map(lambda l: line_to_unicode(l, encoding), next(reader))
   for row in reader:
-    yield dict(zip(names, map(utf8, row)))
+    yield dict(zip(names, map(lambda l: line_to_unicode(l, encoding), row)))
 
 def xesformat(ts):
   # The XES timestamp format is very nearly compatible with
@@ -201,6 +201,12 @@ may not contain quoted characters.""")
       metavar='CHAR',
       dest='escape',
       help='quote characters inside quotes are escaped by %(metavar)s')
+  escape_group.add_argument(
+      '--encoding',
+      metavar='ENCODING',
+      dest='encoding',
+      help='the input text encoding is %(metavar)s (default: \'%(default)s\'',
+      default='utf-8')
 
   mapping_group = parser.add_argument_group('attribute mapping arguments', """\
 These arguments control how event attributes will be mapped to XES attributes.
@@ -248,7 +254,7 @@ contain Python format specifiers that refer to named event attributes.""")
     if args.xpath_selector or args.css_selector:
       error("XML selectors cannot be used with the --csv argument", usage=True)
     else:
-      entries = csv_handler(args.infile,
+      entries = csv_handler(args.infile, args.encoding,
           delimiter=args.delimiter,
           quotechar=args.quote,
           doublequote=args.double_quote,
