@@ -46,7 +46,7 @@ def error(msg, usage=False):
   exit(1)
 
 def progress(msg):
-  sys.stderr.write("%s\n" % msg)
+  sys.stderr.write("\r%s" % msg)
 
 def xml_handler(f, selector):
   tree = etree.parse(f)
@@ -301,16 +301,16 @@ These arguments control the generation of the final XES document.""")
         traces[possible_name].append(e)
         count += 1
         if count % 1000 == 0:
-          progress("Processed %d entries." % count)
+          progress("Processing events: %d..." % count)
         break
       except KeyError:
         pass
   total_traces = len(traces)
-  progress("Processed a total of %d entries across %d traces." % \
+  progress("Processed events: %d, spread across %d traces.\n" % \
       (count, total_traces))
 
   if args.max_traces:
-    progress("Pruning to at most %d traces." % args.max_traces)
+    progress("Pruning to at most %d traces.\n" % args.max_traces)
     traces = {ti: traces[ti] for ti in traces_in_order[:args.max_traces]}
     total_traces = len(traces)
 
@@ -335,11 +335,12 @@ These arguments control the generation of the final XES document.""")
       root.append(trace)
     count += 1
     if count % 1000 == 0:
-      progress("Processed %d/%d traces (%g%%)." % \
+      progress("Processing traces: %d/%d (%g%%)..." % \
           (count, total_traces, (float(count) / total_traces) * 100))
-
-  progress("Writing tree.")
+  progress("Processed traces: %d/%d (100%%).          \n" % (count, total_traces))
+  progress("Writing XML document... ")
   etree.ElementTree(root).write(args.outfile,
       pretty_print=True,
       encoding="utf-8",
       xml_declaration=True)
+  progress("Writing XML document... done.\n")
