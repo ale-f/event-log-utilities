@@ -222,11 +222,12 @@ These arguments control how event attributes will be mapped to XES attributes.
 The --mapping and --trace arguments may be given several times. VALUE can
 contain Python format specifiers that refer to named event attributes.""")
   mapping_group.add_argument(
-      '--mapping',
+      '--event-attr',
       metavar=('XES-NAME', 'VALUE'),
       nargs=2,
       action='append',
-      help='define a mapping from event attributes to XES attributes')
+      dest='event_attrs',
+      help='define a mapping from event attributes to XES event attributes')
   mapping_group.add_argument(
       '--trace',
       metavar='VALUE',
@@ -254,16 +255,16 @@ These arguments control the generation of the final XES document.""")
   if not args.chatty:
     progress = lambda s: None
 
-  mappings = {}
-  if args.mapping:
-    for k, v in args.mapping:
+  event_attribute_mappings = {}
+  if args.event_attrs:
+    for k, v in args.event_attrs:
       k = k.split(":", 2)
       if len(k) == 1:
         prefix = None
         name = k[0]
       else:
         prefix, name = k
-      mappings[(prefix, name)] = v
+      event_attribute_mappings[(prefix, name)] = v
 
   if args.mode == 'xml':
     if args.xpath_selector:
@@ -317,7 +318,7 @@ These arguments control the generation of the final XES document.""")
   root = etree.Element("log")
 
   used_prefixes = set()
-  for prefix, _ in mappings:
+  for prefix, _ in event_attribute_mappings:
     if not prefix or prefix in used_prefixes:
       continue
     root.append(get_extension_element(prefix))
@@ -331,7 +332,8 @@ These arguments control the generation of the final XES document.""")
     trace.append(etree.Element("string", key="concept:name", value=t))
     if traces[t]:
       for d in traces[t]:
-        trace.append(dict_to_element(d, mappings, args.preserve))
+        trace.append(
+            dict_to_element(d, event_attribute_mappings, args.preserve))
       root.append(trace)
     count += 1
     if count % 1000 == 0:
