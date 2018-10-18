@@ -270,8 +270,8 @@ may not contain quoted characters.""")
   pseudo_group = parser.add_argument_group('pseudonymisation arguments', """\
 These arguments are used to pseudonymise event attribute values that contain
 personal information by replacing them with Danish-inspired values drawn from
-internal pools. (This feature is NOT a good substitute for a proper sensitive
-data handling policy.)""")
+internal pools. Pools are shared across attributes. (This feature is NOT a good
+substitute for a proper sensitive data handling policy.)""")
   pseudo_group.add_argument(
       '--pseudonymise-name',
       metavar='ATTR',
@@ -394,12 +394,12 @@ These arguments control the generation of the final XES document.""")
         traces[possible_name].append(e)
         count += 1
         if count % 1000 == 0:
-          progress("Processing events: %d..." % count)
+          progress("Loading events: %d..." % count)
         break
       except KeyError:
         pass
   total_traces = len(traces)
-  progress("Processed events: %d, spread across %d traces.\n" % \
+  progress("Loaded events: %d, spread across %d traces.\n" % \
       (count, total_traces))
 
   if args.max_traces:
@@ -429,7 +429,7 @@ These arguments control the generation of the final XES document.""")
       root.append(trace)
     count += 1
     if count % 1000 == 0:
-      progress("Processing traces: %d/%d (%g%%)..." % \
+      progress("Processing traces: %d/%d (%g%%)...        \b\b\b\b\b\b\b\b" % \
           (count, total_traces, (float(count) / total_traces) * 100))
   progress("Processed traces: %d/%d (100%%).          \n" % (count, total_traces))
   progress("Writing XML document... ")
