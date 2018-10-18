@@ -218,7 +218,7 @@ may not contain quoted characters.""")
       default='utf-8')
 
   mapping_group = parser.add_argument_group('attribute mapping arguments', """\
-These arguments control how event attributes will be mapped to XES attributes.
+These arguments define the mapping from event attributes to XES attributes.
 The --mapping and --trace arguments may be given several times. VALUE can
 contain Python format specifiers that refer to named event attributes.""")
   mapping_group.add_argument(
@@ -229,11 +229,14 @@ contain Python format specifiers that refer to named event attributes.""")
       dest='event_attrs',
       help='define a mapping from event attributes to XES event attributes')
   mapping_group.add_argument(
-      '--trace',
-      metavar='VALUE',
+      '--trace-attr',
+      metavar=('XES-NAME', 'VALUE'),
+      nargs=2,
       action='append',
-      help='define a mapping from event attributes to XES trace names; each ' +
-           'event will end up in precisely one trace')
+      dest='trace_attrs',
+      help='define a mapping from event attributes to XES trace attributes; ' +
+           'each event will end up in precisely one trace based on this ' +
+           'mapping')
   mapping_group.add_argument(
       '--preserve',
       action='store_true',
@@ -266,6 +269,17 @@ These arguments control the generation of the final XES document.""")
         prefix, name = k
       event_attribute_mappings[(prefix, name)] = v
 
+  trace_attribute_mappings = {}
+  if args.trace_attrs:
+    for k, v in args.trace_attrs:
+      k = k.split(":", 2)
+      if len(k) == 1:
+        prefix = None
+        name = k[0]
+      else:
+        prefix, name = k
+      trace_attribute_mappings[(prefix, name)] = v
+
   if args.mode == 'xml':
     if args.xpath_selector:
       selector = XPath(args.xpath_selector)
@@ -284,16 +298,16 @@ These arguments control the generation of the final XES document.""")
           doublequote=args.double_quote,
           escapechar=args.escape)
 
-  if args.trace:
-    args.trace.reverse()
-  else:
-    args.trace = []
-  args.trace.append("")
+  trace_names = [""]
+  for name, value in trace_attribute_mappings.items():
+    if name == ("concept", "name"):
+      trace_names.insert(0, value)
+
   traces = {}
   traces_in_order = []
   count = 0
   for e in entries:
-    for t in args.trace:
+    for t in trace_names:
       try:
         possible_name = t % e
         if not possible_name in traces:
