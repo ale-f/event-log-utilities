@@ -34,10 +34,60 @@ import sys
 from lxml import etree
 from lxml.etree import XPath
 from lxml.cssselect import CSSSelector
+import random
 import argparse
 import dateutil.parser
 
 prog_name = os.path.basename(sys.argv[0])
+
+def rigged_shuffle(l, seed=2300):
+  r = random.Random()
+  r.seed(seed)
+  r.shuffle(l)
+
+# All of these lists are, according to Danmarks Statistik, the biggest (most
+# popular, ...) in Denmark as of the beginning of 2018
+first_names_f = [u"Anne", u"Kirsten", u"Mette", u"Hanne", u"Anna", u"Helle",
+               u"Susanne", u"Lene", u"Maria", u"Marianne", u"Lone", u"Camilla",
+               u"Inge", u"Pia", u"Karen", u"Bente", u"Louise", u"Charlotte",
+               u"Jette", u"Tina"]
+first_names_m = [u"Peter", u"Jens", u"Michael", u"Lars", u"Henrik", u"Thomas",
+                 u"Søren", u"Jan", u"Christian", u"Martin", u"Niels",
+                 u"Anders", u"Morten", u"Jesper", u"Jørgen", u"Hans", u"Mads",
+                 u"Per", u"Ole", u"Rasmus"]
+first_names = first_names_f + first_names_m
+last_names = [u"Nielsen", u"Jensen", u"Hansen", u"Pedersen", u"Andersen",
+              u"Christensen", u"Larsen", u"Sørensen", u"Rasmussen",
+              u"Jørgensen", u"Petersen", u"Madsen", u"Kristensen", u"Olsen",
+              u"Thomsen", u"Christiansen", u"Poulsen", u"Johansen", u"Møller",
+              u"Mortensen"]
+places = [u"København", u"Aarhus", u"Aalborg", u"Odense", u"Esbjerg",
+          u"Vejle", u"Frederiksberg", u"Randers", u"Viborg", u"Kolding",
+          u"Silkeborg", u"Horsens", u"Herning", u"Roskilde", u"Næstved",
+          u"Slagelse", u"Gentofte", u"Sønderborg", u"Holbæk", u"Gladsaxe",
+          u"Hjørring", u"Helsingør", u"Guldborgsund", u"Skanderborg", u"Køge",
+          u"Frederikshavn", u"Aabenraa", u"Svendborg", u"Holstebro",
+          u"Ringkøbing-Skjern", u"Rudersdal", u"Haderslev", u"Lyngby-Taarbæk",
+          u"Hvidovre", u"Faaborg-Midtfyn", u"Fredericia", u"Hillerød",
+          u"Høje-Taastrup", u"Varde", u"Greve"]
+
+all_names = [f + u" Kim " + l for f in first_names for l in last_names]
+rigged_shuffle(places)
+rigged_shuffle(all_names)
+
+pseudo_pools = {"name": all_names, "place": places}
+pseudo_mappings = {"name": {}, "place": {}}
+
+def pseudonymise(kind, n):
+  global pseudo_pools, pseudo_mappings
+  assert kind in pseudo_pools, """\
+no pseudonym pool available for items of type '%s'""" % kind
+  if not n in pseudo_mappings[kind]:
+    assert pseudo_pools[kind], """\
+pseudonym pool '%s' is empty""" % kind
+    pseudo_mappings[kind][n], pseudo_pools[kind] = \
+        pseudo_pools[kind][0], pseudo_pools[kind][1:]
+  return pseudo_mappings[kind][n]
 
 def error(msg, usage=False):
   sys.stderr.write("%s: error: %s\n" % (prog_name, msg))
@@ -217,6 +267,28 @@ may not contain quoted characters.""")
       help='the input text encoding is %(metavar)s (default: \'%(default)s\'',
       default='utf-8')
 
+  pseudo_group = parser.add_argument_group('pseudonymisation arguments', """\
+These arguments are used to pseudonymise event attribute values that contain
+personal information by replacing them with Danish-inspired values drawn from
+internal pools. (This feature is NOT a good substitute for a proper sensitive
+data handling policy.)""")
+  pseudo_group.add_argument(
+      '--pseudonymise-name',
+      metavar='ATTR',
+      dest='pseudo_names',
+      action='append',
+      help='pseudonymise the event attribute %(metavar)s, which specifies a ' +
+           'person\'s name (pool size: %d, first entry: "%s")' % \
+           (len(pseudo_pools["name"]), pseudo_pools["name"][0]))
+  pseudo_group.add_argument(
+      '--pseudonymise-place',
+      metavar='ATTR',
+      dest='pseudo_places',
+      action='append',
+      help='pseudonymise the event attribute %(metavar)s, which specifies a ' +
+           'town or city (pool size: %d, first entry: "%s")' % \
+           (len(pseudo_pools["place"]), pseudo_pools["place"][0]))
+
   mapping_group = parser.add_argument_group('attribute mapping arguments', """\
 These arguments define the mapping from event attributes to XES attributes.
 The --mapping and --trace arguments may be given several times. VALUE can
@@ -307,6 +379,12 @@ These arguments control the generation of the final XES document.""")
   traces_in_order = []
   count = 0
   for e in entries:
+    if args.pseudo_names or args.pseudo_places:
+      for attr_name, attr_value in e.items():
+        if attr_name in args.pseudo_names:
+          e[attr_name] = pseudonymise("name", attr_value)
+        elif attr_name in args.pseudo_places:
+          e[attr_name] = pseudonymise("place", attr_value)
     for t in trace_names:
       try:
         possible_name = t % e
