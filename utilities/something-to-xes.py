@@ -31,6 +31,7 @@
 import os
 import csv
 import sys
+import gzip
 from lxml import etree
 from lxml.etree import XPath
 from lxml.cssselect import CSSSelector
@@ -178,28 +179,36 @@ prefix "%s" does not specify a known standard XES extension""" % prefix
   name, uri = extensions[prefix]
   return etree.Element("extension", name=name, prefix=prefix, uri=uri)
 
+def file_handle(a, mode='r'):
+  if a.endswith(".gz"):
+    return gzip.open(a, mode)
+  else:
+    return open(a, mode)
+
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description="""\
 Convert a XML- or CSV-format event log to an XES document.""")
-  parser.add_argument(
-      'infile',
-      metavar='IN',
-      help='the input file (defaults to standard input)',
-      nargs='?',
-      type=argparse.FileType('r'),
-      default=sys.stdin)
-  parser.add_argument(
-      'outfile',
-      metavar='OUT',
-      help='the output file (defaults to standard output)',
-      nargs='?',
-      type=argparse.FileType('w'),
-      default=sys.stdout)
   parser.add_argument(
       '--quiet',
       help='don\'t write progress information to standard error',
       action='store_false',
       dest='chatty')
+  io_group = parser.add_argument_group('input/output file selection', """\
+Filenames can end with '.gz' for transparent decompression or compression.""")
+  io_group.add_argument(
+      'infile',
+      metavar='INFILE',
+      help='the input file (defaults to standard input)',
+      nargs='?',
+      type=lambda s: file_handle(s, "r"),
+      default=sys.stdin)
+  io_group.add_argument(
+      'outfile',
+      metavar='OUTFILE',
+      help='the output file (defaults to standard output)',
+      nargs='?',
+      type=lambda s: file_handle(s, "w"),
+      default=sys.stdout)
 
   mode_group_ = parser.add_argument_group('mode arguments', """\
 These arguments specify the type of the input file. Precisely one of them must
