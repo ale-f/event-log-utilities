@@ -413,13 +413,12 @@ These arguments control the generation of the final XES document.""")
   root = etree.Element("log")
 
   used_prefixes = set()
-  for prefix, _ in event_attribute_mappings:
+  for (prefix, _) in \
+      event_attribute_mappings.keys() + trace_attribute_mappings.keys():
     if not prefix or prefix in used_prefixes:
       continue
     root.append(get_extension_element(prefix))
     used_prefixes.add(prefix)
-  if not "concept" in used_prefixes:
-    root.append(get_extension_element("concept"))
 
   count = 0
   for t in traces:
