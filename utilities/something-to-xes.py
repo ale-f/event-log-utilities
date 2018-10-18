@@ -243,7 +243,8 @@ may not contain quoted characters.""")
   csv_group.add_argument(
       '--delimiter',
       metavar='CHAR',
-      help='%(metavar)s is the field delimiter (default: \'%(default)s\')',
+      help='%(metavar)s is the field delimiter; the special value \'\\t\' ' +
+           'specifies a tab (default: \'%(default)s\')',
       default=',')
   csv_group.add_argument(
       '--quote',
@@ -364,6 +365,8 @@ These arguments control the generation of the final XES document.""")
     if args.xpath_selector or args.css_selector:
       error("XML selectors cannot be used with the --csv argument", usage=True)
     else:
+      if args.delimiter == '\\t':
+        args.delimiter = '\t'
       entries = csv_handler(args.infile, args.encoding,
           delimiter=args.delimiter,
           quotechar=args.quote,
