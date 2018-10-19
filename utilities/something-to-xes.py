@@ -141,29 +141,33 @@ def handle_time(ts):
       key="time:timestamp",
       value=xesformat(dateutil.parser.parse(ts)))
 
-types = {
+special_attributes = {
   ("time", "timestamp"): handle_time
 }
+
+def name_to_raw_name(n):
+  p, r = n
+  if p:
+    return "%s:%s" % (p, r)
+  else:
+    return r
 
 def dict_to_element(d, mappings, preserve=False):
   el = etree.Element("event")
   for (name, value) in mappings.items():
-    p, r = name
-    if p:
-      raw_name = "%s:%s" % (p, r)
-    else:
-      raw_name = r
     try:
       actual = value % d
-      if not name in types:
-        el.append(etree.Element("string", key=raw_name, value=actual))
+      if not name in special_attributes:
+        el.append(etree.Element(
+            "string", key=name_to_raw_name(name), value=actual))
       else:
-        el.append(types[name](actual))
+        el.append(special_attributes[name](actual))
     except KeyError:
       pass
   if preserve:
     for name, value in d.items():
-      el.append(etree.Element("string", key=name, value=value if value else ""))
+      el.append(etree.Element(
+          "string", key=name, value=value if value else ""))
   return el
 
 extensions = {
@@ -419,32 +423,55 @@ These arguments control the generation of the final XES document.""")
     traces = {ti: traces[ti] for ti in traces_in_order[:args.max_traces]}
     total_traces = len(traces)
 
-  root = etree.Element("log")
+  root_el = etree.Element("log")
 
   used_prefixes = set()
   for (prefix, _) in \
       event_attribute_mappings.keys() + trace_attribute_mappings.keys():
     if not prefix or prefix in used_prefixes:
       continue
-    root.append(get_extension_element(prefix))
+    root_el.append(get_extension_element(prefix))
     used_prefixes.add(prefix)
 
   count = 0
-  for t in traces:
-    trace = etree.Element("trace")
-    trace.append(etree.Element("string", key="concept:name", value=t))
-    if traces[t]:
-      for d in traces[t]:
-        trace.append(
-            dict_to_element(d, event_attribute_mappings, args.preserve))
-      root.append(trace)
+  for trace in traces:
+    trace_el = etree.Element("trace")
+    trace_attributes = {}
+    if traces[trace]:
+      for event in traces[trace]:
+        event_el = dict_to_element(
+            event, event_attribute_mappings, args.preserve)
+        for name, value in trace_attribute_mappings.items():
+          try:
+            actual = value % event
+            if not name in trace_attributes:
+              trace_attributes[name] = actual
+            else:
+              assert trace_attributes[name] == actual, """\
+trace '%s': not all events have the same value for trace attribute '%s'""" % \
+    (trace, name_to_raw_name(name))
+          except KeyError:
+            pass
+        trace_el.append(event_el)
+
+      pos = 0
+      for name, actual in trace_attributes.items():
+        try:
+          if not name in special_attributes:
+            trace_el.insert(pos, etree.Element(
+                "string", key=name_to_raw_name(name), value=actual))
+          else:
+            trace_el.insert(pos, special_attributes[name](actual))
+        finally:
+          pos += 1
+      root_el.append(trace_el)
     count += 1
     if count % 1000 == 0:
       progress("Processing traces: %d/%d (%g%%)...        \b\b\b\b\b\b\b\b" % \
           (count, total_traces, (float(count) / total_traces) * 100))
   progress("Processed traces: %d/%d (100%%).          \n" % (count, total_traces))
   progress("Writing XML document... ")
-  etree.ElementTree(root).write(args.outfile,
+  etree.ElementTree(root_el).write(args.outfile,
       pretty_print=True,
       encoding="utf-8",
       xml_declaration=True)
