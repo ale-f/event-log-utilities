@@ -437,34 +437,35 @@ These arguments control the generation of the final XES document.""")
   for trace in traces:
     trace_el = etree.Element("trace")
     trace_attributes = {}
-    if traces[trace]:
-      for event in traces[trace]:
-        event_el = dict_to_element(
-            event, event_attribute_mappings, args.preserve)
-        for name, value in trace_attribute_mappings.items():
-          try:
-            actual = value % event
-            if not name in trace_attributes:
-              trace_attributes[name] = actual
-            else:
-              assert trace_attributes[name] == actual, """\
-trace '%s': not all events have the same value for trace attribute '%s'""" % \
-    (trace, name_to_raw_name(name))
-          except KeyError:
-            pass
-        trace_el.append(event_el)
 
-      pos = 0
-      for name, actual in trace_attributes.items():
+    for event in traces[trace]:
+      event_el = dict_to_element(
+          event, event_attribute_mappings, args.preserve)
+      for name, value in trace_attribute_mappings.items():
         try:
-          if not name in special_attributes:
-            trace_el.insert(pos, etree.Element(
-                "string", key=name_to_raw_name(name), value=actual))
+          actual = value % event
+          if not name in trace_attributes:
+            trace_attributes[name] = actual
           else:
-            trace_el.insert(pos, special_attributes[name](actual))
-        finally:
-          pos += 1
-      root_el.append(trace_el)
+            assert trace_attributes[name] == actual, """\
+trace '%s': not all events have the same value for trace attribute '%s'""" % \
+  (trace, name_to_raw_name(name))
+        except KeyError:
+          pass
+      trace_el.append(event_el)
+
+    pos = 0
+    for name, actual in trace_attributes.items():
+      try:
+        if not name in special_attributes:
+          trace_el.insert(pos, etree.Element(
+              "string", key=name_to_raw_name(name), value=actual))
+        else:
+          trace_el.insert(pos, special_attributes[name](actual))
+      finally:
+        pos += 1
+    root_el.append(trace_el)
+
     count += 1
     if count % 1000 == 0:
       progress("Processing traces: %d/%d (%g%%)...        \b\b\b\b\b\b\b\b" % \
