@@ -327,8 +327,8 @@ contain Python format specifiers that refer to named event attributes.""")
   mapping_group.add_argument(
       '--preserve',
       action='store_true',
-      help='preserve all event attributes verbatim in the output, not just ' +
-           'the mapped ones')
+      help='preserve all event attributes in the output, not just the ' +
+           'mapped ones')
 
   output_group = parser.add_argument_group('output arguments', """\
 These arguments control the generation of the final XES document.""")
