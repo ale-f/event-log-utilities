@@ -165,6 +165,7 @@ def dict_to_element(d, mappings, preserve=False):
     except KeyError:
       pass
   if preserve:
+    el.append(etree.Comment(" Raw event attributes follow: "))
     for name, value in d.items():
       el.append(etree.Element(
           "string", key=name, value=value if value else ""))
