@@ -35,6 +35,7 @@ import gzip
 from lxml import etree
 from lxml.etree import XPath
 from lxml.cssselect import CSSSelector
+from uuid import UUID
 import random
 import argparse
 import dateutil.parser
@@ -76,18 +77,41 @@ all_names = [f + u" Kim " + l for f in first_names for l in last_names]
 rigged_shuffle(places)
 rigged_shuffle(all_names)
 
-pseudo_pools = {"name": all_names, "place": places}
-pseudo_mappings = {"name": {}, "place": {}}
+def _yield_pseudorandom_uuid(seed=2300):
+  r = random.Random()
+  r.seed(seed)
+  while True:
+    yield str(UUID(int=r.getrandbits(128)))
+
+pseudo_pools = {
+  "name": {
+    "len": len(all_names),
+    "example": "Michael Kim Christiansen",
+    "iter": iter(all_names)
+  },
+  "place": {
+    "len": len(places),
+    "example": "Kolding",
+    "iter": iter(places)
+  },
+  "uuid": {
+    "len": float("inf"),
+    "example": "50484c7b-4d18-5c1f-6e2c-53cd782a6b63",
+    "iter": _yield_pseudorandom_uuid()
+  }
+}
+pseudo_mappings = {a: {} for a in pseudo_pools}
 
 def pseudonymise(kind, n):
   global pseudo_pools, pseudo_mappings
   assert kind in pseudo_pools, """\
 no pseudonym pool available for items of type '%s'""" % kind
   if not n in pseudo_mappings[kind]:
-    assert pseudo_pools[kind], """\
-pseudonym pool '%s' is empty""" % kind
-    pseudo_mappings[kind][n], pseudo_pools[kind] = \
-        pseudo_pools[kind][0], pseudo_pools[kind][1:]
+    try:
+      pseudo_mappings[kind][n] = next(pseudo_pools[kind]["iter"])
+    except StopIteration:
+      raise Exception("""\
+pseudonym pool '%s' is empty""" % kind)
   return pseudo_mappings[kind][n]
 
 def error(msg, usage=False):
@@ -284,25 +308,33 @@ may not contain quoted characters.""")
 
   pseudo_group = parser.add_argument_group('pseudonymisation arguments', """\
 These arguments are used to pseudonymise event attribute values that contain
-personal information by replacing them with Danish-inspired values drawn from
-internal pools. Pools are shared across attributes. (This feature is NOT a good
-substitute for a proper sensitive data handling policy.)""")
+sensitive information by replacing them with values drawn from internal pools.
+Pools are shared across attributes. (This feature is NOT a good substitute for
+a proper sensitive data handling policy.)""")
   pseudo_group.add_argument(
       '--pseudonymise-name',
       metavar='ATTR',
       dest='pseudo_names',
       action='append',
       help='pseudonymise the event attribute %(metavar)s, which specifies a ' +
-           'person\'s name (pool size: %d, first entry: "%s")' % \
-           (len(pseudo_pools["name"]), pseudo_pools["name"][0]))
+           'person\'s name (pool size: %g, example entry: "%s")' % \
+           (pseudo_pools["name"]["len"], pseudo_pools["name"]["example"]))
   pseudo_group.add_argument(
       '--pseudonymise-place',
       metavar='ATTR',
       dest='pseudo_places',
       action='append',
       help='pseudonymise the event attribute %(metavar)s, which specifies a ' +
-           'town or city (pool size: %d, first entry: "%s")' % \
-           (len(pseudo_pools["place"]), pseudo_pools["place"][0]))
+           'town or city (pool size: %g, example entry: "%s")' % \
+           (pseudo_pools["place"]["len"], pseudo_pools["place"]["example"]))
+  pseudo_group.add_argument(
+      '--pseudonymise-uuid',
+      metavar='ATTR',
+      dest='pseudo_uuids',
+      action='append',
+      help='pseudonymise the event attribute %(metavar)s, which specifies a ' +
+           'UUID (pool size: %g, example entry: "%s")' % \
+           (pseudo_pools["uuid"]["len"], pseudo_pools["uuid"]["example"]))
 
   mapping_group = parser.add_argument_group('attribute mapping arguments', """\
 These arguments define the mapping from event attributes to XES attributes.
@@ -396,12 +428,14 @@ These arguments control the generation of the final XES document.""")
   traces_in_order = []
   count = 0
   for e in entries:
-    if args.pseudo_names or args.pseudo_places:
+    if args.pseudo_names or args.pseudo_places or args.pseudo_uuid:
       for attr_name, attr_value in e.items():
         if attr_name in args.pseudo_names:
           e[attr_name] = pseudonymise("name", attr_value)
         elif attr_name in args.pseudo_places:
           e[attr_name] = pseudonymise("place", attr_value)
+        elif attr_name in args.pseudo_uuids:
+          e[attr_name] = pseudonymise("uuid", attr_value)
     for t in trace_names:
       try:
         possible_name = t % e
