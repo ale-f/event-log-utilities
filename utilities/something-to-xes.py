@@ -316,6 +316,7 @@ a proper sensitive data handling policy.)""")
       metavar='ATTR',
       dest='pseudo_names',
       action='append',
+      default=[],
       help='pseudonymise the event attribute %(metavar)s, which specifies a ' +
            'person\'s name (pool size: %g, example entry: "%s")' % \
            (pseudo_pools["name"]["len"], pseudo_pools["name"]["example"]))
@@ -324,6 +325,7 @@ a proper sensitive data handling policy.)""")
       metavar='ATTR',
       dest='pseudo_places',
       action='append',
+      default=[],
       help='pseudonymise the event attribute %(metavar)s, which specifies a ' +
            'town or city (pool size: %g, example entry: "%s")' % \
            (pseudo_pools["place"]["len"], pseudo_pools["place"]["example"]))
@@ -332,6 +334,7 @@ a proper sensitive data handling policy.)""")
       metavar='ATTR',
       dest='pseudo_uuids',
       action='append',
+      default=[],
       help='pseudonymise the event attribute %(metavar)s, which specifies a ' +
            'UUID (pool size: %g, example entry: "%s")' % \
            (pseudo_pools["uuid"]["len"], pseudo_pools["uuid"]["example"]))
@@ -376,6 +379,12 @@ These arguments control the generation of the final XES document.""")
 
   if not args.chatty:
     progress = lambda s: None
+
+  attributes_to_pseudonymise = \
+      {name: pool for name, pool in \
+          map(lambda name: (name, "name"), args.pseudo_names) +
+          map(lambda name: (name, "place"), args.pseudo_places) +
+          map(lambda name: (name, "uuid"), args.pseudo_uuids)}
 
   event_attribute_mappings = {}
   if args.event_attrs:
@@ -428,14 +437,11 @@ These arguments control the generation of the final XES document.""")
   traces_in_order = []
   count = 0
   for e in entries:
-    if args.pseudo_names or args.pseudo_places or args.pseudo_uuid:
+    if attributes_to_pseudonymise:
       for attr_name, attr_value in e.items():
-        if attr_name in args.pseudo_names:
-          e[attr_name] = pseudonymise("name", attr_value)
-        elif attr_name in args.pseudo_places:
-          e[attr_name] = pseudonymise("place", attr_value)
-        elif attr_name in args.pseudo_uuids:
-          e[attr_name] = pseudonymise("uuid", attr_value)
+        if attr_name in attributes_to_pseudonymise:
+          e[attr_name] = pseudonymise(
+              attributes_to_pseudonymise[attr_name], attr_value)
     for t in trace_names:
       try:
         possible_name = t % e
