@@ -216,7 +216,9 @@ def file_handle(a, mode='r'):
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description="""\
-Convert a XML- or CSV-format event log to an XES document.""")
+Convert a XML- or CSV-format flat event log to an XES document containing
+structured traces, transforming event attributes into XES attributes in the
+process.""")
   parser.add_argument(
       '--quiet',
       help='don\'t write progress information to standard error',
