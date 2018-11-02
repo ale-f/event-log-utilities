@@ -410,6 +410,16 @@ These arguments control the generation of the final XES document.""")
         prefix, name = k
       trace_attribute_mappings[(prefix, name)] = v
 
+  root_el = etree.Element("log")
+
+  used_prefixes = set()
+  for (prefix, _) in \
+      event_attribute_mappings.keys() + trace_attribute_mappings.keys():
+    if not prefix or prefix in used_prefixes:
+      continue
+    root_el.append(get_extension_element(prefix))
+    used_prefixes.add(prefix)
+
   if args.mode == 'xml':
     if args.xpath_selector:
       selector = XPath(args.xpath_selector)
@@ -465,16 +475,6 @@ These arguments control the generation of the final XES document.""")
     progress("Pruning to at most %d traces.\n" % args.max_traces)
     traces = {ti: traces[ti] for ti in traces_in_order[:args.max_traces]}
     total_traces = len(traces)
-
-  root_el = etree.Element("log")
-
-  used_prefixes = set()
-  for (prefix, _) in \
-      event_attribute_mappings.keys() + trace_attribute_mappings.keys():
-    if not prefix or prefix in used_prefixes:
-      continue
-    root_el.append(get_extension_element(prefix))
-    used_prefixes.add(prefix)
 
   count = 0
   for trace in traces:
