@@ -456,8 +456,8 @@ standard extensions are already specified.)""")
 
   mapping_group = parser.add_argument_group('attribute mapping arguments', """\
 These arguments define the mapping from event attributes to XES attributes.
-The --mapping and --trace arguments may be given several times. VALUE can
-contain Python format specifiers that refer to named event attributes.""")
+VALUE can contain Python format specifiers that refer to named event
+attributes.""")
   mapping_group.add_argument(
       '--event-attr',
       metavar=('XES-NAME', 'VALUE'),
@@ -474,8 +474,8 @@ contain Python format specifiers that refer to named event attributes.""")
       dest='trace_attrs',
       default=[],
       help='define a mapping from event attributes to XES trace attributes; ' +
-           'each event will end up in precisely one trace based on this ' +
-           'mapping')
+           'each event will end up in precisely one trace based on these ' +
+           'mappings')
   mapping_group.add_argument(
       '--preserve',
       action='store_true',
