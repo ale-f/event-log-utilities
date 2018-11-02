@@ -271,6 +271,8 @@ def dict_to_element(d, mappings, preserve=False):
       el.append(make_element(name, actual))
     except KeyError:
       pass
+    except ValueError:
+      pass
   if preserve:
     el.append(etree.Comment(" Raw event attributes follow: "))
     for name, value in d.items():
@@ -613,8 +615,11 @@ trace '%s': not all events have the same value for trace attribute '%s'""" % \
 
     pos = 0
     for name, actual in trace_attributes.items():
-      trace_el.insert(pos, make_element(name, actual))
-      pos += 1
+      try:
+        trace_el.insert(pos, make_element(name, actual))
+        pos += 1
+      except ValueError:
+        pass
     root_el.append(trace_el)
 
     count += 1
