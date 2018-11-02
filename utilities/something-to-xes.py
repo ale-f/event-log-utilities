@@ -159,15 +159,33 @@ def xesformat(ts):
   else:
     return base + "Z"
 
-def handle_time(ts):
+def string_element(key, v):
+  return etree.Element(
+      "string",
+      key=key,
+      value=v if v else "")
+
+def date_element(key, v):
   return etree.Element(
       "date",
-      key="time:timestamp",
-      value=xesformat(dateutil.parser.parse(ts)))
+      key=key,
+      value=xesformat(dateutil.parser.parse(v)))
 
-special_attributes = {
-  ("time", "timestamp"): handle_time
+elementary_attribute_types = {
+  "string": string_element,
+  "date": date_element
 }
+
+typed_attributes = {
+  ("time", "timestamp"): "date"
+}
+
+def make_element(name, value):
+  element_type = "string"
+  if name in typed_attributes:
+    element_type = typed_attributes[name]
+  return elementary_attribute_types[element_type](
+      name_to_raw_name(name), value)
 
 def name_to_raw_name(n):
   p, r = n
@@ -188,18 +206,13 @@ def dict_to_element(d, mappings, preserve=False):
   for (name, value) in mappings.items():
     try:
       actual = value % d
-      if not name in special_attributes:
-        el.append(etree.Element(
-            "string", key=name_to_raw_name(name), value=actual))
-      else:
-        el.append(special_attributes[name](actual))
+      el.append(make_element(name, actual))
     except KeyError:
       pass
   if preserve:
     el.append(etree.Comment(" Raw event attributes follow: "))
     for name, value in d.items():
-      el.append(etree.Element(
-          "string", key=name, value=value if value else ""))
+      el.append(string_element(name, value))
   return el
 
 extensions = {
@@ -515,14 +528,8 @@ trace '%s': not all events have the same value for trace attribute '%s'""" % \
 
     pos = 0
     for name, actual in trace_attributes.items():
-      try:
-        if not name in special_attributes:
-          trace_el.insert(pos, etree.Element(
-              "string", key=name_to_raw_name(name), value=actual))
-        else:
-          trace_el.insert(pos, special_attributes[name](actual))
-      finally:
-        pos += 1
+      trace_el.insert(pos, make_element(name, actual))
+      pos += 1
     root_el.append(trace_el)
 
     count += 1
