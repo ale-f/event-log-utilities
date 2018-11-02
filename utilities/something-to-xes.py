@@ -176,6 +176,13 @@ def name_to_raw_name(n):
   else:
     return r
 
+def raw_name_to_name(n):
+  parts = n.split(":", 2)
+  if len(parts) == 1:
+    return (None, parts[0])
+  else:
+    return (parts[0], parts[1])
+
 def dict_to_element(d, mappings, preserve=False):
   el = etree.Element("event")
   for (name, value) in mappings.items():
@@ -366,6 +373,7 @@ contain Python format specifiers that refer to named event attributes.""")
       nargs=2,
       action='append',
       dest='event_attrs',
+      default=[],
       help='define a mapping from event attributes to XES event attributes')
   mapping_group.add_argument(
       '--trace-attr',
@@ -373,6 +381,7 @@ contain Python format specifiers that refer to named event attributes.""")
       nargs=2,
       action='append',
       dest='trace_attrs',
+      default=[],
       help='define a mapping from event attributes to XES trace attributes; ' +
            'each event will end up in precisely one trace based on this ' +
            'mapping')
@@ -404,26 +413,12 @@ These arguments control the generation of the final XES document.""")
           map(lambda name: (name, "uuid"), args.pseudo_uuids)}
 
   event_attribute_mappings = {}
-  if args.event_attrs:
-    for k, v in args.event_attrs:
-      k = k.split(":", 2)
-      if len(k) == 1:
-        prefix = None
-        name = k[0]
-      else:
-        prefix, name = k
-      event_attribute_mappings[(prefix, name)] = v
+  for k, v in args.event_attrs:
+    event_attribute_mappings[raw_name_to_name(k)] = v
 
   trace_attribute_mappings = {}
-  if args.trace_attrs:
-    for k, v in args.trace_attrs:
-      k = k.split(":", 2)
-      if len(k) == 1:
-        prefix = None
-        name = k[0]
-      else:
-        prefix, name = k
-      trace_attribute_mappings[(prefix, name)] = v
+  for k, v in args.trace_attrs:
+    trace_attribute_mappings[raw_name_to_name(k)] = v
 
   for prefix, name, uri in args.xes_extensions:
     assert not prefix in extensions, """\
