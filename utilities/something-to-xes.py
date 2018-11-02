@@ -171,13 +171,74 @@ def date_element(key, v):
       key=key,
       value=xesformat(dateutil.parser.parse(v)))
 
+def int_element(key, v):
+  return etree.Element(
+      "int",
+      key=key,
+      value=str(int(v)))
+
+def float_element(key, v):
+  return etree.Element(
+      "float",
+      key=key,
+      value=str(float(v)))
+
+def boolean_element(key, v):
+  value = "false"
+  v = v.strip().lower()
+  if v == "true" or v == "1" or v == "yes":
+    value = "true"
+  return etree.Element(
+      "boolean",
+      key=key,
+      value=value)
+
+def id_element(key, v):
+  return etree.Element(
+      "id",
+      key=key,
+      value=v)
+
+def uuid_element(key, v):
+  return id_element(key, str(UUID(v)))
+
 elementary_attribute_types = {
   "string": string_element,
-  "date": date_element
+  "date": date_element,
+  "int": int_element,
+  "float": float_element,
+  "boolean": boolean_element,
+  "id": id_element,
+
+  # Types with a leading underscore are for internal use
+  "_uuid": uuid_element
 }
 
 typed_attributes = {
-  ("time", "timestamp"): "date"
+  ("concept", "name"): "string",
+  ("concept", "event"): "string",
+
+  ("lifecycle", "model"): "string",
+  ("lifecycle", "transition"): "string",
+
+  ("org", "resource"): "string",
+  ("org", "role"): "string",
+  ("org", "group"): "string",
+
+  ("time", "timestamp"): "date",
+
+  ("semantic", "modelReference"): "string",
+
+  # Attributes of type "id" are not required by the XES specification to be
+  # UUIDs, but the "id" attribute from the identity extension explicitly does
+  # require this. A secret extra elementary attribute type takes care of
+  # enforcing this constraint
+  ("id", "id"): "_uuid",
+
+  ("cost", "total"): "float",
+  ("cost", "currency"): "string"
+  # The cost extension's meta-attributes are not supported, because
+  # meta-attributes in general are not supported
 }
 
 def make_element(name, value):
