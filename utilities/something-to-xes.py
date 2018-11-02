@@ -210,7 +210,8 @@ elementary_attribute_types = {
   "boolean": boolean_element,
   "id": id_element,
 
-  # Types with a leading underscore are for internal use
+  # Types with a leading underscore are for internal use and do not appear in
+  # the help text's list of elementary types
   "_uuid": uuid_element
 }
 
@@ -427,7 +428,9 @@ a proper sensitive data handling policy.)""")
            (pseudo_pools["uuid"]["len"], pseudo_pools["uuid"]["example"]))
 
   xes_group = parser.add_argument_group('XES control arguments', """\
-These arguments add new XES extensions to the output document.""")
+These arguments add new XES extensions to the output document and specify the
+types of output XES attributes. (The types of the attributes specified in the
+standard extensions are already specified.)""")
   xes_group.add_argument(
       '--xes-extension',
       metavar=('PREFIX', 'NAME', 'URI'),
@@ -436,6 +439,18 @@ These arguments add new XES extensions to the output document.""")
       dest='xes_extensions',
       default=[],
       help='add a new XES extension to the document')
+  xes_group.add_argument(
+      '--type',
+      metavar=('XES-NAME', 'TYPE'),
+      nargs=2,
+      action='append',
+      dest='types',
+      default=[],
+      help='define the elementary type of an XES event attribute; ' +
+           'attributes with no defined type will be treated as strings ' +
+           '(supported types: %s)' % \
+           ", ".join(filter(lambda a: not a.startswith("_"),
+               elementary_attribute_types.keys())))
 
   mapping_group = parser.add_argument_group('attribute mapping arguments', """\
 These arguments define the mapping from event attributes to XES attributes.
@@ -499,6 +514,15 @@ These arguments control the generation of the final XES document.""")
 cannot replace the prefix "%s", which is already associated with the "%s" \
 extension (%s)""" % (prefix, extensions[prefix][0], extensions[prefix][1])
     extensions[prefix] = (name, uri)
+
+  for k, t in args.types:
+    assert t in elementary_attribute_types, """\
+"%s" does not identify an elementary attribute type""" % t
+    name = raw_name_to_name(k)
+    assert not name in typed_attributes, """\
+cannot change the type of "%s" from %s to \
+%s""" % (k, typed_attributes[name], t)
+    typed_attributes[name] = t
 
   root_el = etree.Element("log")
 
