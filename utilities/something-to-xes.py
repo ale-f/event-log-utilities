@@ -199,12 +199,16 @@ extensions = {
   "concept": ("Concept", "http://www.xes-standard.org/concept.xesext"),
   "lifecycle": ("Lifecycle", "http://www.xes-standard.org/lifecycle.xesext"),
   "org": ("Organizational", "http://www.xes-standard.org/org.xesext"),
-  "time": ("Time", "http://www.xes-standard.org/time.xesext")
+  "time": ("Time", "http://www.xes-standard.org/time.xesext"),
+  "semantic": ("Semantic", "http://www.xes-standard.org/semantic.xesext"),
+  "id": ("ID", "http://www.xes-standard.org/identity.xesext"),
+  "cost": ("Cost", "http://www.xes-standard.org/cost.xesext")
 }
 
 def get_extension_element(prefix):
   assert prefix in extensions, """\
-prefix "%s" does not specify a known standard XES extension""" % prefix
+prefix "%s" does not specify a known XES extension (see the --xes-extension \
+argument)""" % prefix
   name, uri = extensions[prefix]
   return etree.Element("extension", name=name, prefix=prefix, uri=uri)
 
@@ -341,6 +345,17 @@ a proper sensitive data handling policy.)""")
            'UUID (pool size: %g, example entry: "%s")' % \
            (pseudo_pools["uuid"]["len"], pseudo_pools["uuid"]["example"]))
 
+  xes_group = parser.add_argument_group('XES control arguments', """\
+These arguments add new XES extensions to the output document.""")
+  xes_group.add_argument(
+      '--xes-extension',
+      metavar=('PREFIX', 'NAME', 'URI'),
+      nargs=3,
+      action='append',
+      dest='xes_extensions',
+      default=[],
+      help='add a new XES extension to the document')
+
   mapping_group = parser.add_argument_group('attribute mapping arguments', """\
 These arguments define the mapping from event attributes to XES attributes.
 The --mapping and --trace arguments may be given several times. VALUE can
@@ -409,6 +424,12 @@ These arguments control the generation of the final XES document.""")
       else:
         prefix, name = k
       trace_attribute_mappings[(prefix, name)] = v
+
+  for prefix, name, uri in args.xes_extensions:
+    assert not prefix in extensions, """\
+cannot replace the prefix "%s", which is already associated with the "%s" \
+extension (%s)""" % (prefix, extensions[prefix][0], extensions[prefix][1])
+    extensions[prefix] = (name, uri)
 
   root_el = etree.Element("log")
 
