@@ -440,7 +440,9 @@ standard extensions are already specified.)""")
       action='append',
       dest='xes_extensions',
       default=[],
-      help='add a new XES extension to the document')
+      help='add a new XES extension to the document (the specification of ' +
+           'which will not be downloaded; attribute types must be declared ' +
+           'explicitly)')
   xes_group.add_argument(
       '--type',
       metavar=('XES-NAME', 'TYPE'),
