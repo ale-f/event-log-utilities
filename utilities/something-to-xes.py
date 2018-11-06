@@ -512,19 +512,25 @@ These arguments control the generation of the final XES document.""")
     trace_attribute_mappings[raw_name_to_name(k)] = v
 
   for prefix, name, uri in args.xes_extensions:
-    assert not prefix in extensions, """\
+    assert not prefix in extensions or extensions[prefix] == (name, uri), """\
 cannot replace the prefix "%s", which is already associated with the "%s" \
 extension (%s)""" % (prefix, extensions[prefix][0], extensions[prefix][1])
-    extensions[prefix] = (name, uri)
+    if prefix in extensions:
+      pass
+    else:
+      extensions[prefix] = (name, uri)
 
   for k, t in args.types:
     assert t in elementary_attribute_types, """\
 "%s" does not identify an elementary attribute type""" % t
     name = raw_name_to_name(k)
-    assert not name in typed_attributes, """\
+    assert not name in typed_attributes or typed_attributes[name] == t, """\
 cannot change the type of "%s" from %s to \
 %s""" % (k, typed_attributes[name], t)
-    typed_attributes[name] = t
+    if name in typed_attributes:
+      pass
+    else:
+      typed_attributes[name] = t
 
   root_el = etree.Element("log")
 
