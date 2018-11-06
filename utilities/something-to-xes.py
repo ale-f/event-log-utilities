@@ -127,6 +127,8 @@ def xml_handler(f, selector):
   tree = etree.parse(f)
   for e in selector(tree):
     result = {}
+    for name, value in e.items():
+      result["." + name] = value
     for child in e:
       result[child.tag] = child.text
       for name, value in child.items():
