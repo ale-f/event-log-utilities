@@ -313,6 +313,11 @@ process.""")
       help='don\'t write progress information to standard error',
       action='store_false',
       dest='chatty')
+  parser.add_argument(
+      '--dump-events',
+      help='print all the loaded events and exit immediately',
+      action='store_true',
+      dest='dump_events')
   io_group = parser.add_argument_group('input/output file selection', """\
 Filenames can end with '.gz' for transparent decompression or compression.""")
   io_group.add_argument(
@@ -579,19 +584,26 @@ cannot change the type of "%s" from %s to \
         if attr_name in attributes_to_pseudonymise:
           e[attr_name] = pseudonymise(
               attributes_to_pseudonymise[attr_name], attr_value)
-    for t in trace_names:
-      try:
-        possible_name = t % e
-        if not possible_name in traces:
-          traces[possible_name] = []
-          traces_in_order.append(possible_name)
-        traces[possible_name].append(e)
-        count += 1
-        if count % 1000 == 0:
-          progress("Loading events: %d..." % count)
-        break
-      except KeyError:
-        pass
+    if not args.dump_events:
+      for t in trace_names:
+        try:
+          possible_name = t % e
+          if not possible_name in traces:
+            traces[possible_name] = []
+            traces_in_order.append(possible_name)
+          traces[possible_name].append(e)
+          count += 1
+          if count % 1000 == 0:
+            progress("Loading events: %d..." % count)
+          break
+        except KeyError:
+          pass
+    else:
+      for attr_name, attr_value in e.items():
+        print("%s: %s" % (attr_name, attr_value))
+      print("--")
+  if args.dump_events:
+    sys.exit(0)
   total_traces = len(traces)
   progress("Loaded events: %d, spread across %d traces.\n" % \
       (count, total_traces))
