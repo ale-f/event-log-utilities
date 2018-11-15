@@ -135,14 +135,13 @@ def xml_handler(f, selector):
         result[child.tag + "." + name] = value
     yield result
 
-def line_to_unicode(s, encoding, errors='strict'):
-  return unicode(s, encoding, errors=errors)
-
 def csv_handler(f, encoding, **fmtparams):
+  def tidy(s):
+    return unicode(s, encoding, errors='strict') if s else None
   reader = csv.reader(f, **fmtparams)
-  names = map(lambda l: line_to_unicode(l, encoding), next(reader))
+  names = map(tidy, next(reader))
   for row in reader:
-    yield dict(zip(names, map(lambda l: line_to_unicode(l, encoding), row)))
+    yield dict(filter(lambda a: a[1], zip(names, map(tidy, row))))
 
 def xesformat(ts):
   # The XES timestamp format is very nearly compatible with
