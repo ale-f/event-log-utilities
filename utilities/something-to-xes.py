@@ -147,7 +147,7 @@ def csv_handler(f, encoding, **fmtparams):
   reader = csv.reader(f, **fmtparams)
   names = map(tidy, next(reader))
   for row in reader:
-    yield dict(filter(lambda a: a[1], zip(names, map(tidy, row))))
+    yield {a: b for a, b in zip(names, map(tidy, row)) if b}
 
 def xesformat(ts):
   # The XES timestamp format is very nearly compatible with
@@ -509,8 +509,8 @@ standard extensions are already specified.)""")
       help='define the elementary type of an XES event attribute; ' +
            'attributes with no defined type will be treated as strings ' +
            '(supported types: %s)' % \
-           ", ".join(filter(lambda a: not a.startswith("_"),
-               elementary_attribute_types.keys())))
+           ", ".join([a for a in elementary_attribute_types.keys() \
+               if not a.startswith("_")]))
 
   mapping_group = parser.add_argument_group('attribute mapping arguments', """\
 These arguments define the mapping from event attributes to XES attributes.
@@ -557,9 +557,9 @@ These arguments control the generation of the final XES document.""")
 
   attributes_to_pseudonymise = \
       {name: pool for name, pool in \
-          map(lambda name: (name, "name"), args.pseudo_names) +
-          map(lambda name: (name, "place"), args.pseudo_places) +
-          map(lambda name: (name, "uuid"), args.pseudo_uuids)}
+          [(name, "name") for name in args.pseudo_names] +
+          [(name, "place") for name in args.pseudo_places] +
+          [(name, "uuid") for name in args.pseudo_uuids]}
 
   event_attribute_mappings = defaultdict(list)
   for k, v in args.event_attrs:
@@ -657,9 +657,9 @@ cannot change the type of "%s" from %s to \
             e[attr_name] = pseudonymise(
                 attributes_to_pseudonymise[attr_name], attr_value)
       if args.empty_tokens:
-        e = dict(filter(lambda a: a[1] not in args.empty_tokens, e.items()))
+        e = {a: b for a, b in e.items() if not b in args.empty_tokens}
       if not args.unify_attributes:
-        e = dict(map(lambda a: (prefix + a[0], a[1]), e.items()))
+        e = {prefix + a: b for a, b in e.items()}
       if not args.dump_events:
         for t in trace_names:
           try:
