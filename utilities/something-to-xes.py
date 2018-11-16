@@ -442,6 +442,14 @@ may not contain quoted characters.""")
       help='rename event attributes to include the format and index of ' +
            'the input file they came from',
       action='store_false')
+  ppr_group.add_argument(
+      '--empty-value',
+      dest='empty_tokens',
+      metavar='TOKEN',
+      help='add the value %(metavar)s to the list of tokens that cause an ' +
+           'attribute to be treated as being empty',
+      action='append',
+      default=[])
 
   pseudo_group = parser.add_argument_group('pseudonymisation arguments', """\
 These arguments are used to pseudonymise event attribute values that contain
@@ -651,6 +659,8 @@ cannot change the type of "%s" from %s to \
           if attr_name in attributes_to_pseudonymise:
             e[attr_name] = pseudonymise(
                 attributes_to_pseudonymise[attr_name], attr_value)
+      if args.empty_tokens:
+        e = dict(filter(lambda a: a[1] not in args.empty_tokens, e.items()))
       if not args.dump_events:
         for t in trace_names:
           try:
