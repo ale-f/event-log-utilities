@@ -40,6 +40,7 @@ from uuid import UUID
 import random
 import argparse
 import dateutil.parser
+from collections import defaultdict
 
 prog_name = os.path.basename(sys.argv[0])
 
@@ -270,14 +271,16 @@ def raw_name_to_name(n):
 
 def dict_to_element(d, mappings, preserve=False):
   el = etree.Element("event")
-  for (name, value) in mappings.items():
-    try:
-      actual = value % d
-      el.append(make_element(name, actual))
-    except KeyError:
-      pass
-    except ValueError:
-      pass
+  for (name, values) in mappings.items():
+    for value in values:
+      try:
+        actual = value % d
+        el.append(make_element(name, actual))
+        break
+      except KeyError:
+        pass
+      except ValueError:
+        pass
   if preserve:
     el.append(etree.Comment(" Raw event attributes follow: "))
     for name, value in d.items():
@@ -549,13 +552,13 @@ These arguments control the generation of the final XES document.""")
           map(lambda name: (name, "place"), args.pseudo_places) +
           map(lambda name: (name, "uuid"), args.pseudo_uuids)}
 
-  event_attribute_mappings = {}
+  event_attribute_mappings = defaultdict(list)
   for k, v in args.event_attrs:
-    event_attribute_mappings[raw_name_to_name(k)] = v
+    event_attribute_mappings[raw_name_to_name(k)].append(v)
 
-  trace_attribute_mappings = {}
+  trace_attribute_mappings = defaultdict(list)
   for k, v in args.trace_attrs:
-    trace_attribute_mappings[raw_name_to_name(k)] = v
+    trace_attribute_mappings[raw_name_to_name(k)].append(v)
 
   for prefix, name, uri in args.xes_extensions:
     assert not prefix in extensions or extensions[prefix] == (name, uri), """\
@@ -633,9 +636,10 @@ cannot change the type of "%s" from %s to \
     error("no input files were specified", usage=True)
 
   trace_names = [""]
-  for name, value in trace_attribute_mappings.items():
+  for name, values in trace_attribute_mappings.items():
     if name == ("concept", "name"):
-      trace_names.insert(0, value)
+      for value in values:
+        trace_names.insert(0, value)
 
   traces = {}
   traces_in_order = []
@@ -684,17 +688,19 @@ cannot change the type of "%s" from %s to \
     for event in traces[trace]:
       event_el = dict_to_element(
           event, event_attribute_mappings, args.preserve)
-      for name, value in trace_attribute_mappings.items():
-        try:
-          actual = value % event
-          if not name in trace_attributes:
-            trace_attributes[name] = actual
-          else:
-            assert trace_attributes[name] == actual, """\
-trace '%s': not all events have the same value for trace attribute '%s'""" % \
-  (trace, name_to_raw_name(name))
-        except KeyError:
-          pass
+      for name, values in trace_attribute_mappings.items():
+        for value in values:
+          try:
+            actual = value % event
+            if not name in trace_attributes:
+              trace_attributes[name] = actual
+            else:
+              assert trace_attributes[name] == actual, """\
+  trace '%s': not all events have the same value for trace attribute '%s'""" % \
+    (trace, name_to_raw_name(name))
+            break
+          except KeyError:
+            pass
       trace_el.append(event_el)
 
     pos = 0
