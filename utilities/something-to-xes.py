@@ -127,23 +127,23 @@ def error(msg, usage=False):
 def progress(msg):
   sys.stderr.write("\r%s" % msg)
 
-def xml_handler(f, selector):
+def xml_handler(f, prefix, selector):
   tree = etree.parse(f)
   for e in selector(tree):
     result = {}
     for name, value in e.items():
-      result["." + name] = value
+      result[prefix + "." + name] = value
     for child in e:
-      result[child.tag] = child.text
+      result[prefix + child.tag] = child.text
       for name, value in child.items():
-        result[child.tag + "." + name] = value
+        result[prefix + child.tag + "." + name] = value
     yield result
 
-def csv_handler(f, encoding, **fmtparams):
+def csv_handler(f, prefix, encoding, **fmtparams):
   def tidy(s):
     return unicode(s, encoding, errors='strict') if s else None
   reader = csv.reader(f, **fmtparams)
-  names = map(tidy, next(reader))
+  names = map(lambda t: tidy(prefix + t), next(reader))
   for row in reader:
     yield dict(filter(lambda a: a[1], zip(names, map(tidy, row))))
 
@@ -425,6 +425,21 @@ may not contain quoted characters.""")
       help='the input text encoding is %(metavar)s (default: \'%(default)s\'',
       default='utf-8')
 
+  ppr_group = parser.add_argument_group(
+      'event attribute preprocessing arguments')
+  ppr_group.add_argument(
+      '--unify-attributes',
+      dest='unify_attributes',
+      help='share event attribute names across all input files (default)',
+      action='store_true',
+      default=True)
+  ppr_group.add_argument(
+      '--distinguish-attributes',
+      dest='unify_attributes',
+      help='rename event attributes to include the format and index of ' +
+           'the input file they came from',
+      action='store_false')
+
   pseudo_group = parser.add_argument_group('pseudonymisation arguments', """\
 These arguments are used to pseudonymise event attribute values that contain
 sensitive information by replacing them with values drawn from internal pools.
@@ -584,16 +599,18 @@ cannot change the type of "%s" from %s to \
       error("no selector specified; use either --xpath or --css", usage=True)
     if args.in_xml:
       print("Loading XML files: %s" % args.in_xml)
-      for inf in args.in_xml:
-        event_iterators.append(xml_handler(inf, selector))
+      for idx, inf in enumerate(args.in_xml):
+        event_iterators.append(xml_handler(
+            inf, "" if args.unify_attributes else ("xml%d." % idx), selector))
     else:
       stdin_used = True
-      event_iterators.append(xml_handler(sys.stdin, selector))
+      event_iterators.append(xml_handler(
+          sys.stdin, "" if args.unify_attributes else "xml-.", selector))
   elif (args.xpath_selector or args.css_selector):
     warning("XML selectors were specified, but there were no XML input files")
 
-  def _csv_handler(f):
-    return csv_handler(f, args.encoding,
+  def _csv_handler(f, prefix):
+    return csv_handler(f, prefix, args.encoding,
         delimiter=args.delimiter,
         quotechar=args.quote,
         doublequote=args.double_quote,
@@ -603,12 +620,14 @@ cannot change the type of "%s" from %s to \
       args.delimiter = '\t'
     if args.in_csv:
       for inf in args.in_csv:
-        event_iterators.append(_csv_handler(inf))
+        event_iterators.append(_csv_handler(
+            inf, "" if args.unify_attributes else ("csv%d." % idx)))
     elif stdin_used:
       error("cannot load standard input as both XML and CSV", usage=True)
     else:
       stdin_used = True
-      event_iterators.append(_csv_handler(inf))
+      event_iterators.append(_csv_handler(
+          sys.stdin, "" if args.unify_attributes else "csv-."))
 
   if not event_iterators:
     error("no input files were specified", usage=True)
