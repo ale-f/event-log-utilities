@@ -31,6 +31,7 @@
 import os
 import csv
 import sys
+from copy import copy as shallow_copy
 import gzip
 from lxml import etree
 from lxml.etree import XPath
@@ -113,6 +114,9 @@ no pseudonym pool available for items of type '%s'""" % kind
       raise Exception("""\
 pseudonym pool '%s' is empty""" % kind)
   return pseudo_mappings[kind][n]
+
+def warn(msg):
+  sys.stderr.write("%s: warning: %s\n" % (prog_name, msg))
 
 def error(msg, usage=False):
   sys.stderr.write("%s: error: %s\n" % (prog_name, msg))
@@ -303,11 +307,32 @@ def file_handle(a, mode='r'):
   else:
     return open(a, mode)
 
+class ExtendAction(argparse.Action):
+  def __init__(self, option_strings, dest, nargs=None,
+      default=None, type=None, help=None, metavar=None):
+    if nargs == 0:
+      raise ValueError
+    super(ExtendAction, self).__init__(
+        option_strings=option_strings,
+        dest=dest,
+        nargs=nargs,
+        default=default,
+        type=type,
+        help=help,
+        metavar=metavar)
+
+  def __call__(self, parser, namespace, values, option_string=None):
+    items = shallow_copy(getattr(namespace, self.dest, []))
+    if not items:
+      items = []
+    items.extend(values)
+    setattr(namespace, self.dest, items)
+
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description="""\
-Convert a XML- or CSV-format flat event log to an XES document containing
-structured traces, transforming event attributes into XES attributes in the
-process.""")
+Convert one or more XML- or CSV-format flat event logs to an XES document
+containing structured traces, transforming event attributes into XES attributes
+in the process.""")
   parser.add_argument(
       '--quiet',
       help='don\'t write progress information to standard error',
@@ -318,44 +343,42 @@ process.""")
       help='print all the loaded events and exit immediately',
       action='store_true',
       dest='dump_events')
-  io_group = parser.add_argument_group('input/output file selection', """\
-Filenames can end with '.gz' for transparent decompression or compression.""")
+
+  io_group = parser.add_argument_group('input and output selection', """\
+These arguments specify the types and locations of input files and the location
+of the output file. Filenames can end with '.gz' for transparent decompression
+or compression.""")
   io_group.add_argument(
-      'infile',
+      '--xml',
+      dest='in_xml',
       metavar='INFILE',
-      help='the input file (defaults to standard input)',
-      nargs='?',
+      help='load each %(metavar)s, or standard input if none were given, as ' +
+           'a XML document',
+      action=ExtendAction,
+      nargs='*',
       type=lambda s: file_handle(s, "r"),
-      default=sys.stdin)
+      default=None)
   io_group.add_argument(
-      'outfile',
+      '--csv',
+      dest='in_csv',
+      metavar='INFILE',
+      help='load each %(metavar)s, or standard input if none were given, as ' +
+           'a CSV document',
+      action=ExtendAction,
+      nargs='*',
+      type=lambda s: file_handle(s, "r"),
+      default=None)
+  io_group.add_argument(
+      '-o', '--output',
+      dest='outfile',
       metavar='OUTFILE',
-      help='the output file (defaults to standard output)',
-      nargs='?',
+      help='the output file (default: standard output)',
       type=lambda s: file_handle(s, "w"),
       default=sys.stdout)
 
-  mode_group_ = parser.add_argument_group('mode arguments', """\
-These arguments specify the type of the input file. Precisely one of them must
-be specified.""")
-  mode_group = mode_group_.add_mutually_exclusive_group(required=True)
-  mode_group.add_argument(
-      '--xml',
-      help='parse the input file as a XML document (requires either --xpath ' +
-           'or --css)',
-      action='store_const',
-      dest='mode',
-      const='xml')
-  mode_group.add_argument(
-      '--csv',
-      help='parse the input file as a CSV document',
-      action='store_const',
-      dest='mode',
-      const='csv')
-
   xml_group = parser.add_argument_group('XML input arguments', """\
-These arguments specify how to select event elements from a XML input file.
-Precisely one of them must be specified (when using --xml).""")
+These arguments specify how to select event elements from XML input files.
+Precisely one of them must be specified.""")
   selector_group = xml_group.add_mutually_exclusive_group(required=False)
   selector_group.add_argument(
       '--xpath',
@@ -371,7 +394,7 @@ Precisely one of them must be specified (when using --xml).""")
            'the given CSS selector')
 
   csv_group = parser.add_argument_group('CSV input arguments', """\
-These arguments specify the CSV dialect used by the input file; all are
+These arguments specify the CSV dialect used by CSV input files; all are
 optional. If neither --double-quote nor --escape is specified, quoted fields
 may not contain quoted characters.""")
   csv_group.add_argument(
@@ -550,25 +573,45 @@ cannot change the type of "%s" from %s to \
     root_el.append(get_extension_element(prefix))
     used_prefixes.add(prefix)
 
-  if args.mode == 'xml':
+  stdin_used = False
+  event_iterators = []
+  if args.in_xml != None:
     if args.xpath_selector:
       selector = XPath(args.xpath_selector)
     elif args.css_selector:
       selector = CSSSelector(args.css_selector)
     else:
       error("no selector specified; use either --xpath or --css", usage=True)
-    entries = xml_handler(args.infile, selector)
-  elif args.mode == 'csv':
-    if args.xpath_selector or args.css_selector:
-      error("XML selectors cannot be used with the --csv argument", usage=True)
+    if args.in_xml:
+      print("Loading XML files: %s" % args.in_xml)
+      for inf in args.in_xml:
+        event_iterators.append(xml_handler(inf, selector))
     else:
-      if args.delimiter == '\\t':
-        args.delimiter = '\t'
-      entries = csv_handler(args.infile, args.encoding,
-          delimiter=args.delimiter,
-          quotechar=args.quote,
-          doublequote=args.double_quote,
-          escapechar=args.escape)
+      stdin_used = True
+      event_iterators.append(xml_handler(sys.stdin, selector))
+  elif (args.xpath_selector or args.css_selector):
+    warning("XML selectors were specified, but there were no XML input files")
+
+  def _csv_handler(f):
+    return csv_handler(f, args.encoding,
+        delimiter=args.delimiter,
+        quotechar=args.quote,
+        doublequote=args.double_quote,
+        escapechar=args.escape)
+  if args.in_csv != None:
+    if args.delimiter == '\\t':
+      args.delimiter = '\t'
+    if args.in_csv:
+      for inf in args.in_csv:
+        event_iterators.append(_csv_handler(inf))
+    elif stdin_used:
+      error("cannot load standard input as both XML and CSV", usage=True)
+    else:
+      stdin_used = True
+      event_iterators.append(_csv_handler(inf))
+
+  if not event_iterators:
+    error("no input files were specified", usage=True)
 
   trace_names = [""]
   for name, value in trace_attribute_mappings.items():
@@ -578,30 +621,31 @@ cannot change the type of "%s" from %s to \
   traces = {}
   traces_in_order = []
   count = 0
-  for e in entries:
-    if attributes_to_pseudonymise:
-      for attr_name, attr_value in e.items():
-        if attr_name in attributes_to_pseudonymise:
-          e[attr_name] = pseudonymise(
-              attributes_to_pseudonymise[attr_name], attr_value)
-    if not args.dump_events:
-      for t in trace_names:
-        try:
-          possible_name = t % e
-          if not possible_name in traces:
-            traces[possible_name] = []
-            traces_in_order.append(possible_name)
-          traces[possible_name].append(e)
-          count += 1
-          if count % 1000 == 0:
-            progress("Loading events: %d..." % count)
-          break
-        except KeyError:
-          pass
-    else:
-      for attr_name, attr_value in e.items():
-        print("%s: %s" % (attr_name, attr_value))
-      print("--")
+  for it in event_iterators:
+    for e in it:
+      if attributes_to_pseudonymise:
+        for attr_name, attr_value in e.items():
+          if attr_name in attributes_to_pseudonymise:
+            e[attr_name] = pseudonymise(
+                attributes_to_pseudonymise[attr_name], attr_value)
+      if not args.dump_events:
+        for t in trace_names:
+          try:
+            possible_name = t % e
+            if not possible_name in traces:
+              traces[possible_name] = []
+              traces_in_order.append(possible_name)
+            traces[possible_name].append(e)
+            count += 1
+            if count % 1000 == 0:
+              progress("Loading events: %d..." % count)
+            break
+          except KeyError:
+            pass
+      else:
+        for attr_name, attr_value in e.items():
+          print("%s: %s" % (attr_name, attr_value))
+        print("--")
   if args.dump_events:
     sys.exit(0)
   total_traces = len(traces)
