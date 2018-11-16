@@ -128,23 +128,24 @@ def error(msg, usage=False):
 def progress(msg):
   sys.stderr.write("\r%s" % msg)
 
-def xml_handler(f, prefix, selector):
+def xml_handler(f, selector):
   tree = etree.parse(f)
   for e in selector(tree):
     result = {}
     for name, value in e.items():
-      result[prefix + "." + name] = value
+      result["." + name] = value
     for child in e:
-      result[prefix + child.tag] = child.text
+      if child.text:
+        result[child.tag] = child.text
       for name, value in child.items():
-        result[prefix + child.tag + "." + name] = value
+        result[child.tag + "." + name] = value
     yield result
 
-def csv_handler(f, prefix, encoding, **fmtparams):
+def csv_handler(f, encoding, **fmtparams):
   def tidy(s):
     return unicode(s, encoding, errors='strict') if s else None
   reader = csv.reader(f, **fmtparams)
-  names = map(lambda t: tidy(prefix + t), next(reader))
+  names = map(tidy, next(reader))
   for row in reader:
     yield dict(filter(lambda a: a[1], zip(names, map(tidy, row))))
 
@@ -611,17 +612,15 @@ cannot change the type of "%s" from %s to \
     if args.in_xml:
       print("Loading XML files: %s" % args.in_xml)
       for idx, inf in enumerate(args.in_xml):
-        event_iterators.append(xml_handler(
-            inf, "" if args.unify_attributes else ("xml%d." % idx), selector))
+        event_iterators.append(("xml%d." % idx, xml_handler(inf, selector)))
     else:
       stdin_used = True
-      event_iterators.append(xml_handler(
-          sys.stdin, "" if args.unify_attributes else "xml-.", selector))
+      event_iterators.append(("xml-.", xml_handler(sys.stdin, selector)))
   elif (args.xpath_selector or args.css_selector):
     warning("XML selectors were specified, but there were no XML input files")
 
-  def _csv_handler(f, prefix):
-    return csv_handler(f, prefix, args.encoding,
+  def _csv_handler(f):
+    return csv_handler(f, args.encoding,
         delimiter=args.delimiter,
         quotechar=args.quote,
         doublequote=args.double_quote,
@@ -630,15 +629,13 @@ cannot change the type of "%s" from %s to \
     if args.delimiter == '\\t':
       args.delimiter = '\t'
     if args.in_csv:
-      for inf in args.in_csv:
-        event_iterators.append(_csv_handler(
-            inf, "" if args.unify_attributes else ("csv%d." % idx)))
+      for idx, inf in enumerate(args.in_csv):
+        event_iterators.append(("csv%d." % idx, _csv_handler(inf)))
     elif stdin_used:
       error("cannot load standard input as both XML and CSV", usage=True)
     else:
       stdin_used = True
-      event_iterators.append(_csv_handler(
-          sys.stdin, "" if args.unify_attributes else "csv-."))
+      event_iterators.append(("csv-.", _csv_handler(sys.stdin)))
 
   if not event_iterators:
     error("no input files were specified", usage=True)
@@ -652,7 +649,7 @@ cannot change the type of "%s" from %s to \
   traces = {}
   traces_in_order = []
   count = 0
-  for it in event_iterators:
+  for prefix, it in event_iterators:
     for e in it:
       if attributes_to_pseudonymise:
         for attr_name, attr_value in e.items():
@@ -661,6 +658,8 @@ cannot change the type of "%s" from %s to \
                 attributes_to_pseudonymise[attr_name], attr_value)
       if args.empty_tokens:
         e = dict(filter(lambda a: a[1] not in args.empty_tokens, e.items()))
+      if not args.unify_attributes:
+        e = dict(map(lambda a: (prefix + a[0], a[1]), e.items()))
       if not args.dump_events:
         for t in trace_names:
           try:
