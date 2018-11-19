@@ -550,6 +550,13 @@ These arguments control the generation of the final XES document.""")
       default=None,
       help='output only the first %(metavar)s traces found in the input ' +
            'file (default: %(default)s)')
+  output_group.add_argument(
+      '--order-by',
+      metavar='XES-NAME',
+      action='store',
+      dest='order_by',
+      help='order events within traces by the value of the named XES event ' +
+           'attribute')
   args = parser.parse_args()
 
   if not args.chatty:
@@ -694,6 +701,7 @@ cannot change the type of "%s" from %s to \
     trace_el = etree.Element("trace")
     trace_attributes = {}
 
+    elements = []
     for event in traces[trace]:
       event_el = dict_to_element(
           event, event_attribute_mappings, args.preserve)
@@ -710,7 +718,16 @@ cannot change the type of "%s" from %s to \
             break
           except KeyError:
             pass
-      trace_el.append(event_el)
+      elements.append(event_el)
+
+    if args.order_by:
+      def _gtsv(el):
+        for i in el.iterdescendants():
+          if i.get("key") == args.order_by:
+            return i.get("value")
+        return None
+      elements.sort(key=_gtsv)
+    trace_el.extend(elements)
 
     pos = 0
     for name, actual in trace_attributes.items():
