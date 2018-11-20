@@ -601,7 +601,8 @@ cannot change the type of "%s" from %s to \
 
   used_prefixes = set()
   for (prefix, _) in \
-      event_attribute_mappings.keys() + trace_attribute_mappings.keys():
+      list(event_attribute_mappings.keys()) + \
+      list(trace_attribute_mappings.keys()):
     if not prefix or prefix in used_prefixes:
       continue
     root_el.append(get_extension_element(prefix))
@@ -713,7 +714,7 @@ cannot change the type of "%s" from %s to \
               trace_attributes[name] = actual
             else:
               assert trace_attributes[name] == actual, """\
-  trace '%s': not all events have the same value for trace attribute '%s'""" % \
+trace '%s': not all events have the same value for trace attribute '%s'""" % \
     (trace, name_to_raw_name(name))
             break
           except KeyError:
