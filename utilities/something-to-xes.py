@@ -557,6 +557,16 @@ These arguments control the generation of the final XES document.""")
       dest='order_by',
       help='order events within traces by the value of the named XES event ' +
            'attribute')
+  output_group.add_argument(
+      '--split-after',
+      metavar='DURATION',
+      action='store',
+      type=int,
+      dest='split_after',
+      default=None,
+      help='split a trace up into several traces whenever there\'s a gap of ' +
+           '%(metavar)s days between events (implies --order-by ' +
+           'time:timestamp)')
   args = parser.parse_args()
 
   if not args.chatty:
@@ -699,9 +709,7 @@ cannot change the type of "%s" from %s to \
 
   count = 0
   for trace in traces:
-    trace_el = etree.Element("trace")
     trace_attributes = {}
-
     elements = []
     for event in traces[trace]:
       event_el = dict_to_element(
@@ -721,23 +729,47 @@ trace '%s': not all events have the same value for trace attribute '%s'""" % \
             pass
       elements.append(event_el)
 
+    subtraces = [elements]
     if args.order_by:
+      assert not args.split_after, """\
+the --split-after option cannot be used with --order-by"""
       def _gtsv(el):
         for i in el.iterdescendants():
           if i.get("key") == args.order_by:
             return i.get("value")
         return None
       elements.sort(key=_gtsv)
-    trace_el.extend(elements)
+    elif args.split_after:
+      def _gtsv(el):
+        for i in el.iterdescendants():
+          if i.get("key") == "time:timestamp":
+            return i.get("value")
+      elements.sort(key=_gtsv)
+      subtraces = [[]]
+      last_ts = None
+      for ev_el in elements:
+        this_ts = _gtsv(ev_el)
+        if this_ts:
+          this_ts = dateutil.parser.parse(this_ts)
+        if this_ts and last_ts and \
+            (this_ts - last_ts).days >= args.split_after:
+          subtraces.append([])
+        last_ts = this_ts
+        subtraces[-1].append(ev_el)
 
-    pos = 0
-    for name, actual in trace_attributes.items():
-      try:
-        trace_el.insert(pos, make_element(name, actual))
-        pos += 1
-      except ValueError:
-        pass
-    root_el.append(trace_el)
+    multiple_subtraces = len(subtraces) != 1
+    for i, st in enumerate(subtraces):
+      trace_el = etree.Element("trace")
+      for name, actual in trace_attributes.items():
+        try:
+          attrib_el = make_element(name, actual)
+          if multiple_subtraces and attrib_el.get("key") == "concept:name":
+            attrib_el.set("value", attrib_el.get("value") + "/%d" % (i + 1))
+          trace_el.append(attrib_el)
+        except ValueError:
+          pass
+      trace_el.extend(st)
+      root_el.append(trace_el)
 
     count += 1
     if count % 1000 == 0:
