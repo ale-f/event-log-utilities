@@ -48,7 +48,7 @@ $ something-to-xes.py --csv workday.csv
 
 When I say "almost", that's because no mappings from CSV fields to XES ones
 have been defined, so the effect of this is to produce a XES log (good!),
-containing a XES trace (good!), containing... eleven empty events:
+containing a XES trace (good!), containing... ten empty events:
 
 ```
 Loaded events: 10, spread across 1 traces.
